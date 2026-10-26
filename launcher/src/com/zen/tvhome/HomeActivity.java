@@ -398,9 +398,18 @@ public class HomeActivity extends Activity {
         View focused = dock.findFocus();
         Object focusedTag = focused != null ? focused.getTag() : null;
         dock.removeAllViews();
+        List<AppEntry> docked = new ArrayList<>();
         for (String pkg : dockPackages()) {
             AppEntry e = find(pkg);
-            if (e == null) continue;
+            if (e != null) docked.add(e);
+        }
+        // Les tuiles rétrécissent pour que le dock tienne dans l'écran (au-delà de la taille mini, il défile).
+        float screenDp = getResources().getDisplayMetrics().widthPixels / dp;
+        float fixedDp = 40 + 25 + 3 * 72 + 2 * 48;
+        int tileW = (int) Math.max(96, Math.min(136, (screenDp - fixedDp) / Math.max(1, docked.size()) - 18));
+        int tileH = Math.round(tileW * 0.5625f);
+        for (AppEntry e : docked) {
+            String pkg = e.pkg;
             View tile = appTile(e);
             tile.setTag(pkg);
             tile.setOnClickListener(v -> launch(e.pkg));
@@ -409,7 +418,7 @@ public class HomeActivity extends Activity {
                 return true;
             });
             tile.setOnKeyListener(this::onDockTileKey);
-            dock.addView(tile, tileParams(136, 76));
+            dock.addView(tile, tileParams(tileW, tileH));
         }
         View divider = new View(this);
         divider.setBackgroundColor(0x40FFFFFF);
