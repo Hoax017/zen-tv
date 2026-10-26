@@ -1,0 +1,12 @@
+# Generated
+launcher/build/
+launcher/assets/wallpapers/
+dist/
+*.idsig
+
+# Local, per user — never commit (TV address, backups of your TV, downloaded adb)
+.zen-tv.conf
+backups/
+screenshots/
+tools/platform-tools/
+.DS_Store

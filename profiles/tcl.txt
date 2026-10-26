@@ -1,0 +1,21 @@
+# TCL Google TV — tested on a TCL G07 4K (Android 11).
+# Same format as common.txt. The firmware re-enables some apps at every boot: those are marked +suspend.
+
+com.tcl.waterfall.overseas        | recommended          | TCL Channel        | Ad-supported channels and sponsored home rows
+com.tcl.partnercustomizer         | recommended          | TCL Channel (partners) | Partner ads and sponsored content
+com.tcl.esticker                  | recommended          | Electronic card    | Pop-up stickers and promotions
+com.tcl.messagebox                | recommended          | Message Box        | TCL push messages and promotions
+com.tcl.notereminder              | recommended+suspend  | Reminder           | TCL reminders and notifications
+com.tcl.usercenter                | recommended+suspend  | User Center        | TCL account and usage data
+com.tcl.guard                     | recommended          | Safety Guard       | TCL "cleaner" running in the background
+com.tcl.hotelmenu                 | recommended          | Hotel menu         | Hotel mode, never used at home
+
+com.tcl.dashboard                 | optional | TCL Home         | TCL dashboard
+com.tcl.assistant                 | optional | T Assistant      | TCL voice assistant
+com.tcl.browser                   | optional | BrowseHere       | TCL web browser
+com.tcl.miracast                  | optional | Miracast         | Mirror your phone's screen
+com.tcl.MultiScreenInteraction_TV | optional | MagiConnect      | TCL phone app connection
+com.tcl.ui_mediaCenter            | optional | Media Player     | Play videos and music from a USB stick
+com.tcl.gallery                   | optional | Gallery          | Photos from a USB stick
+com.tcl.smartalexa                | optional | Alexa            | Amazon Alexa built in
+com.tcl.micmanager                | optional | Far-field mic    | Hands-free microphone

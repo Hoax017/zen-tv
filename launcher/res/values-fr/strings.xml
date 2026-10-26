@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_key_label">Zen Home – touche Accueil</string>
+    <string name="home_key_desc">Ouvre Zen Home quand on appuie sur la touche Accueil de la télécommande.</string>
+    <string name="all_apps">Toutes les apps</string>
+    <string name="all_apps_hint">Appui long ou touche Menu : ajouter / retirer du dock</string>
+    <string name="inputs">Entrées</string>
+    <string name="settings">Réglages</string>
+    <string name="move_hint">◀ ▶  déplacer    ·    OK  valider    ·    ▼  retirer du dock</string>
+    <string name="added_to_dock">%s ajouté au dock</string>
+    <string name="removed_from_dock">%s retiré du dock</string>
+    <string name="cannot_open">Impossible d\'ouvrir l\'appli</string>
+    <string name="unavailable">Indisponible</string>
+</resources>

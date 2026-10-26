@@ -1,0 +1,26 @@
+# Google TV / Android TV apps found on most TVs.
+# Format: package | level | label | description
+#   level: recommended = ads, telemetry or junk, offered as a group
+#          optional    = a feature some people use, asked one by one (default: keep)
+#   add "+suspend" to also suspend the app (for apps the TV re-enables at boot)
+# Nothing is ever uninstalled: apps are disabled with "pm disable-user" and can be restored.
+
+com.google.android.feedback                 | recommended | Market Feedback Agent | Sends Play Store feedback and crash reports
+android.autoinstalls.config.google.gtvpai   | recommended | Device configuration  | Silently installs promoted apps on Google TV
+com.google.android.apps.nbu.smartconnect.tv | recommended | Data Saver            | Google data-saver helper, useless on home Wi-Fi
+com.android.printspooler                    | recommended | Print spooler         | Printing service, no printer on a TV
+
+com.google.android.katniss                  | optional | Google Assistant     | Voice search and the microphone button on the remote
+com.google.android.apps.mediashell          | optional | Google Cast          | Cast from your phone (YouTube, Netflix…) to the TV
+com.google.android.tv.remote.service        | optional | Phone remote         | Use the Google TV app on your phone as a remote
+com.google.android.apps.tv.dreamx           | optional | Ambient mode         | Google TV photo screensaver
+com.google.android.backdrop                 | optional | Ambient mode         | Android TV photo screensaver
+com.google.android.tvrecommendations        | optional | Home recommendations | Suggested content rows on the Android TV home screen
+com.google.android.youtube.tvmusic          | optional | YouTube Music        | YouTube Music app
+com.google.android.videos                   | optional | Google Play Movies   | Movies and shows bought on Google
+com.google.android.play.games               | optional | Google Play Games    | Google Play Games app
+com.amazon.amazonvideo.livingroom           | optional | Prime Video          | Amazon Prime Video (preinstalled)
+com.netflix.ninja                           | optional | Netflix              | Netflix (preinstalled)
+com.disney.disneyplus                       | optional | Disney+              | Disney+ (preinstalled)
+tv.wuaki.apptv                              | optional | Rakuten TV           | Rakuten TV (preinstalled)
+au.com.stan.and                             | optional | Stan                 | Stan (preinstalled)

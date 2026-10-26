@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zen Home</string>
+    <string name="home_key_label">Zen Home – Home button</string>
+    <string name="home_key_desc">Opens Zen Home when you press the Home button on the remote.</string>
+    <string name="all_apps">All apps</string>
+    <string name="all_apps_hint">Long press or Menu button: add to / remove from the dock</string>
+    <string name="inputs">Inputs</string>
+    <string name="settings">Settings</string>
+    <string name="move_hint">◀ ▶  move    ·    OK  done    ·    ▼  remove from dock</string>
+    <string name="added_to_dock">%s added to the dock</string>
+    <string name="removed_from_dock">%s removed from the dock</string>
+    <string name="cannot_open">Can\'t open this app</string>
+    <string name="unavailable">Not available</string>
+</resources>
