@@ -667,14 +667,12 @@ public class HomeActivity extends Activity {
                 launch(e.pkg);
             });
             tile.setOnLongClickListener(v -> {
-                toggleDock(e);
-                buildAllApps(false);
+                toggleDockFromGrid(e);
                 return true;
             });
             tile.setOnKeyListener((v, code, ev) -> {
                 if (code == KeyEvent.KEYCODE_MENU && ev.getAction() == KeyEvent.ACTION_UP) {
-                    toggleDock(e);
-                    buildAllApps(false);
+                    toggleDockFromGrid(e);
                     return true;
                 }
                 return false;
@@ -700,6 +698,19 @@ public class HomeActivity extends Activity {
                         .setDuration(320).setInterpolator(ease).start();
             }
             i++;
+        }
+    }
+
+    /** La grille est reconstruite pour mettre à jour les étoiles : on garde la sélection sur la même appli. */
+    private void toggleDockFromGrid(AppEntry e) {
+        toggleDock(e);
+        buildAllApps(false);
+        for (int i = 0; i < allAppsGrid.getChildCount(); i++) {
+            View tile = ((ViewGroup) allAppsGrid.getChildAt(i)).getChildAt(0);
+            if (e.pkg.equals(tile.getTag())) {
+                tile.requestFocus();
+                break;
+            }
         }
     }
 

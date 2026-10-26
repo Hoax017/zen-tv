@@ -3,7 +3,8 @@
 # Needs: Android SDK (build-tools + a platform >= 30), JDK 11+, Python 3 with Pillow.
 # Output: ../dist/zen-home.apk
 #
-# Signing: set ZEN_KEYSTORE / ZEN_KEYSTORE_PASS / ZEN_KEY_ALIAS / ZEN_KEY_PASS for a release key,
+# Signing: set ZEN_KEYSTORE (+ ZEN_KEYSTORE_PASS / ZEN_KEY_ALIAS / ZEN_KEY_PASS in CI; without them the
+# password is asked) for the release key,
 # otherwise the Android debug key is used (created if missing).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -33,7 +34,11 @@ javac -nowarn --release 11 -classpath "$JAR" -d "$OUT/classes" $(find src "$OUT/
 (cd "$OUT/dex" && zip -q ../unsigned.apk classes.dex)
 "$BT/zipalign" -f 4 "$OUT/unsigned.apk" "$OUT/aligned.apk"
 
-if [ -n "${ZEN_KEYSTORE:-}" ]; then
+if [ -n "${ZEN_KEYSTORE:-}" ] && [ -z "${ZEN_KEYSTORE_PASS:-}" ]; then
+  # Build local signé avec la clé de release : apksigner demande le mot de passe au clavier.
+  "$BT/apksigner" sign --ks "$ZEN_KEYSTORE" --ks-key-alias "${ZEN_KEY_ALIAS:-zen}" \
+    --out "$DIST/zen-home.apk" "$OUT/aligned.apk"
+elif [ -n "${ZEN_KEYSTORE:-}" ]; then
   "$BT/apksigner" sign --ks "$ZEN_KEYSTORE" --ks-pass "pass:$ZEN_KEYSTORE_PASS" \
     --ks-key-alias "$ZEN_KEY_ALIAS" --key-pass "pass:$ZEN_KEY_PASS" --out "$DIST/zen-home.apk" "$OUT/aligned.apk"
 else
