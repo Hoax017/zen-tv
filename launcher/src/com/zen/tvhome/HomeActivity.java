@@ -404,9 +404,11 @@ public class HomeActivity extends Activity {
             if (e != null) docked.add(e);
         }
         // Les tuiles rétrécissent pour que le dock tienne dans l'écran (au-delà de la taille mini, il défile).
+        // Fixe : marges du dock (40) + séparateur (25) + 3 boutons ronds (3 × 72) + un peu d'air de chaque côté (32).
         float screenDp = getResources().getDisplayMetrics().widthPixels / dp;
-        float fixedDp = 40 + 25 + 3 * 72 + 2 * 48;
-        int tileW = (int) Math.max(96, Math.min(136, (screenDp - fixedDp) / Math.max(1, docked.size()) - 18));
+        float fixedDp = 40 + 25 + 3 * 72 + 32;
+        int gap = docked.size() > 5 ? 12 : 18;
+        int tileW = (int) Math.max(80, Math.min(136, (screenDp - fixedDp) / Math.max(1, docked.size()) - gap));
         int tileH = Math.round(tileW * 0.5625f);
         for (AppEntry e : docked) {
             String pkg = e.pkg;
@@ -418,7 +420,9 @@ public class HomeActivity extends Activity {
                 return true;
             });
             tile.setOnKeyListener(this::onDockTileKey);
-            dock.addView(tile, tileParams(tileW, tileH));
+            LinearLayout.LayoutParams lp = tileParams(tileW, tileH);
+            lp.leftMargin = lp.rightMargin = px(gap / 2f);
+            dock.addView(tile, lp);
         }
         View divider = new View(this);
         divider.setBackgroundColor(0x40FFFFFF);
