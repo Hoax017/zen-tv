@@ -159,18 +159,17 @@ function Find-Tv {
 
 # ---------------------------------------------------------------- backup
 
+# backups\<tv>\baseline\   first backup, taken before any change and never replaced: what Restore goes back to
+# backups\<tv>\snapshots\  later backups (for reference only)
+# backups\<tv>\disabled_by_us.txt, suspended_by_us.txt   every change Zen TV made on this TV
 function Device-Dir { Join-Path $Backups ($script:Serial -replace '[:/]', '_') }
-function Latest-Backup {
-  $d = Device-Dir
-  $l = Join-Path $d 'LATEST'
-  if (Test-Path $l) { return Join-Path $d ((Get-Content $l -Raw).Trim()) }
+function Baseline {
+  $d = Join-Path (Device-Dir) 'baseline'
+  if (Test-Path (Join-Path $d 'packages_disabled.txt')) { return $d }
   return $null
 }
 
-function Backup {
-  Title 'Backup'
-  $name = Get-Date -Format 'yyyyMMdd-HHmmss'
-  $b = Join-Path (Device-Dir) $name
+function Snapshot-To($b) {
   New-Item -ItemType Directory -Force $b | Out-Null
   Sh getprop | Set-Content (Join-Path $b 'getprop.txt')
   Pkgs '-d' | Set-Content (Join-Path $b 'packages_disabled.txt')
@@ -180,16 +179,29 @@ function Backup {
   foreach ($ns in 'global', 'secure', 'system') { Sh settings list $ns | Set-Content (Join-Path $b "settings_$ns.txt") }
   Sh cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN |
     Select-Object -Last 1 | Set-Content (Join-Path $b 'home_activity.txt')
-  New-Item -ItemType File -Force (Join-Path $b 'disabled_by_us.txt') | Out-Null
-  New-Item -ItemType File -Force (Join-Path $b 'suspended_by_us.txt') | Out-Null
-  Screenshot-To (Join-Path $b 'screen_before.png')
-  Set-Content -Path (Join-Path (Device-Dir) 'LATEST') -Value $name -NoNewline
-  Ok "Saved in $b"
+  Screenshot-To (Join-Path $b 'screen.png')
+}
+
+function Backup {
+  Title 'Backup'
+  $d = Device-Dir
+  New-Item -ItemType Directory -Force $d | Out-Null
+  foreach ($f in 'disabled_by_us.txt', 'suspended_by_us.txt') {
+    if (-not (Test-Path (Join-Path $d $f))) { New-Item -ItemType File (Join-Path $d $f) | Out-Null }
+  }
+  if (-not (Baseline)) {
+    Snapshot-To (Join-Path $d 'baseline')
+    Ok "Original state saved in $d\baseline (Restore goes back to this)"
+  } else {
+    $s = Join-Path $d ('snapshots\' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    Snapshot-To $s
+    Ok "Snapshot saved in $s (the original state in $d\baseline is kept)"
+  }
 }
 
 function Need-Backup {
-  if (Latest-Backup) { return }
-  Warn 'No backup yet for this TV: making one first.'
+  if (Baseline) { return }
+  Warn 'No backup yet for this TV: saving its original state first.'
   Backup
 }
 
@@ -213,7 +225,7 @@ function Add-Line($file, $line) {
 }
 
 function Disable-Pkg($pkg, [bool]$suspend) {
-  $b = Latest-Backup
+  $b = Device-Dir
   $out = (Sh pm disable-user --user 0 $pkg | Out-String).Trim()
   if ($out -match 'disabled-user') {
     Add-Line (Join-Path $b 'disabled_by_us.txt') $pkg
@@ -269,8 +281,8 @@ function Debloat {
 }
 
 function Reapply {
-  $b = Latest-Backup
-  if (-not $b) { Warn 'Nothing applied yet.'; return }
+  $b = Device-Dir
+  if (-not (Test-Path (Join-Path $b 'disabled_by_us.txt'))) { Warn 'Nothing applied yet.'; return }
   Title 'Re-applying after a TV update / reboot'
   $enabled = @(Pkgs '-e')
   $n = 0
@@ -286,7 +298,16 @@ function Install-Launcher {
   Need-Backup
   Title 'Install Zen Home'
   if (-not (Test-Path $Apk)) { Err 'dist\zen-home.apk is missing. Download the release zip from GitHub.'; return }
-  AdbS install -r $Apk | Select-Object -Last 1 | Out-Host
+  $res = (AdbS install -r $Apk | Out-String)
+  if ($res -notmatch '(?m)^Success') {
+    if ($res -match 'INSTALL_FAILED_UPDATE_INCOMPATIBLE') {
+      Warn 'Another build of Zen Home is installed (signed differently). It must be removed first; your dock order will reset.'
+      if (-not (Yes 'Remove the old Zen Home and install this one?')) { return }
+      Sh pm uninstall com.zen.tvhome | Out-Null
+      $res = (AdbS install $Apk | Out-String)
+    }
+    if ($res -notmatch '(?m)^Success') { Err "Install failed: $($res.Trim())"; return }
+  }
   $cur = (Sh settings get secure enabled_accessibility_services | Out-String).Trim()
   if ($cur -notlike "*$Svc*") {
     $new = if (-not $cur -or $cur -eq 'null') { $Svc } else { "${cur}:$Svc" }
@@ -301,13 +322,14 @@ function Install-Launcher {
 # ---------------------------------------------------------------- restore
 
 function Restore-Tv {
-  $b = Latest-Backup
+  $d = Device-Dir
+  $b = Baseline
   if (-not $b) { Warn 'No backup for this TV.'; return }
   Title 'Restore'
-  Say "Latest backup: $b"
-  if (-not (Yes 'Put the TV back exactly as in this backup?')) { return }
-  foreach ($pkg in (Get-Content (Join-Path $b 'disabled_by_us.txt') | Where-Object { $_ })) { Say "enable ${pkg}: $(Sh pm enable --user 0 $pkg)" }
-  foreach ($pkg in (Get-Content (Join-Path $b 'suspended_by_us.txt') | Where-Object { $_ })) { Sh pm unsuspend --user 0 $pkg | Out-Null }
+  Say "Original state: $b"
+  if (-not (Yes 'Put the TV back as it was before Zen TV?')) { return }
+  foreach ($pkg in (Get-Content (Join-Path $d 'disabled_by_us.txt') | Where-Object { $_ })) { Say "enable ${pkg}: $(Sh pm enable --user 0 $pkg)" }
+  foreach ($pkg in (Get-Content (Join-Path $d 'suspended_by_us.txt') | Where-Object { $_ })) { Sh pm unsuspend --user 0 $pkg | Out-Null }
   $secure = Get-Content (Join-Path $b 'settings_secure.txt')
   foreach ($k in 'enabled_accessibility_services', 'accessibility_enabled') {
     $line = $secure | Where-Object { $_ -like "$k=*" } | Select-Object -First 1
@@ -315,12 +337,14 @@ function Restore-Tv {
   }
   $homeActivity = Get-Content (Join-Path $b 'home_activity.txt') | Where-Object { $_ -match '/' } | Select-Object -Last 1
   if ($homeActivity) { Sh cmd package set-home-activity $homeActivity | Out-Null }
-  if ((Sh pm list packages) -contains 'package:com.zen.tvhome') { Sh pm uninstall com.zen.tvhome | Out-Null }
+  # Zen Home is removed only if it wasn't there in the original state.
+  $hadZen = @(Get-Content (Join-Path $b 'packages_user.txt')) -contains 'com.zen.tvhome'
+  if (-not $hadZen -and (Sh pm list packages) -contains 'package:com.zen.tvhome') { Sh pm uninstall com.zen.tvhome | Out-Null }
   $before = @(Get-Content (Join-Path $b 'packages_disabled.txt') | Where-Object { $_ })
   $after = @(Pkgs '-d')
   $diff = Compare-Object $before $after
-  if (-not $diff) { Ok 'The TV is back to its original state.' } else { Warn 'Differences with the backup (<= before, => now):'; $diff | Out-Host }
-  Clear-Content (Join-Path $b 'disabled_by_us.txt'); Clear-Content (Join-Path $b 'suspended_by_us.txt')
+  if (-not $diff) { Ok 'The TV is back to its original state.' } else { Warn 'Differences with the original state (<= before, => now):'; $diff | Out-Host }
+  Clear-Content (Join-Path $d 'disabled_by_us.txt'); Clear-Content (Join-Path $d 'suspended_by_us.txt')
   Sh input keyevent KEYCODE_HOME | Out-Null
 }
 

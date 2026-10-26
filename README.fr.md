@@ -38,7 +38,7 @@ et dézippe-le où tu veux.
 
 | Windows | Mac | Linux |
 |---|---|---|
-| Double-clic sur **`zen.bat`** | Ouvre *Terminal*, tape `cd ` (avec un espace), glisse le dossier dézippé dans la fenêtre, Entrée, puis tape `./zen.sh` | Dans un terminal, dans le dossier : `./zen.sh` |
+| Double-clic sur **`zen.bat`** *(pas encore testé sur un vrai PC Windows — retours bienvenus)* | Ouvre *Terminal*, tape `cd ` (avec un espace), glisse le dossier dézippé dans la fenêtre, Entrée, puis tape `./zen.sh` | Dans un terminal, dans le dossier : `./zen.sh` |
 
 Ensuite, suis le menu :
 
@@ -119,6 +119,10 @@ pip install pillow
 ./launcher/build.sh        # → dist/zen-home.apk
 ./tools/make-release.sh    # → dist/zen-tv.zip
 ```
+
+Les versions sont compilées par GitHub Actions quand un tag `v*` est poussé. Elles doivent toujours être signées
+avec la même clé (sinon Android refuse la mise à jour) : enregistre-la une fois dans les secrets `ZEN_KEYSTORE_B64`
+(le `.jks` en base64), `ZEN_KEYSTORE_PASS`, `ZEN_KEY_ALIAS` et `ZEN_KEY_PASS`.
 
 Pas de Gradle : `build.sh` appelle directement aapt2, javac, d8 et apksigner. Les fonds d'écran sont générés par
 `launcher/tools/gen_wallpapers.py` (Python pur, aucune image de banque d'images).

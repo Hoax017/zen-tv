@@ -159,13 +159,14 @@ find_tv() {
 
 # ---------------------------------------------------------------- backup
 
+# backups/<tv>/baseline/   first backup, taken before any change and never replaced: what Restore goes back to
+# backups/<tv>/snapshots/  later backups (for reference only)
+# backups/<tv>/disabled_by_us.txt, suspended_by_us.txt   every change Zen TV made on this TV
 device_dir() { printf '%s/%s' "$BACKUPS" "$(printf '%s' "$SERIAL" | tr ':/' '__')"; }
-latest_backup() { local d; d="$(device_dir)"; [ -f "$d/LATEST" ] && printf '%s/%s' "$d" "$(cat "$d/LATEST")"; }
+baseline() { local d; d="$(device_dir)/baseline"; [ -f "$d/packages_disabled.txt" ] && printf '%s' "$d"; }
 
-backup() {
-  title "Backup"
-  local d; d="$(device_dir)"; local name; name=$(date +%Y%m%d-%H%M%S)
-  local B_="$d/$name"; mkdir -p "$B_"
+snapshot_to() {
+  local B_="$1"; mkdir -p "$B_"
   sh_ getprop > "$B_/getprop.txt"
   sh_ pm list packages -d | sed 's/package://' | sort > "$B_/packages_disabled.txt"
   sh_ pm list packages -e | sed 's/package://' | sort > "$B_/packages_enabled.txt"
@@ -173,15 +174,26 @@ backup() {
   sh_ pm list packages -3 | sed 's/package://' | sort > "$B_/packages_user.txt"
   local ns; for ns in global secure system; do sh_ settings list "$ns" > "$B_/settings_$ns.txt"; done
   sh_ cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN | tail -1 > "$B_/home_activity.txt"
-  : > "$B_/disabled_by_us.txt"; : > "$B_/suspended_by_us.txt"
-  adbc exec-out screencap -p > "$B_/screen_before.png" 2>/dev/null
-  printf '%s' "$name" > "$d/LATEST"
-  ok "Saved in $B_"
+  adbc exec-out screencap -p > "$B_/screen.png" 2>/dev/null
+}
+
+backup() {
+  title "Backup"
+  local d; d="$(device_dir)"
+  mkdir -p "$d"; touch "$d/disabled_by_us.txt" "$d/suspended_by_us.txt"
+  if [ -z "$(baseline)" ]; then
+    snapshot_to "$d/baseline"
+    ok "Original state saved in $d/baseline (Restore goes back to this)"
+  else
+    local s_="$d/snapshots/$(date +%Y%m%d-%H%M%S)"
+    snapshot_to "$s_"
+    ok "Snapshot saved in $s_ (the original state in $d/baseline is kept)"
+  fi
 }
 
 need_backup() {
-  [ -n "$(latest_backup)" ] && return 0
-  warn "No backup yet for this TV: making one first."
+  [ -n "$(baseline)" ] && return 0
+  warn "No backup yet for this TV: saving its original state first."
   backup
 }
 
@@ -201,12 +213,12 @@ scan_blocked() {  # advanced scan: package name contains a "~word"
 trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; printf '%s' "${s%"${s##*[![:space:]]}"}"; }
 
 disable_pkg() {  # $1 package, $2 "suspend" or ""
-  local B_; B_=$(latest_backup)
+  local d; d="$(device_dir)"
   local out; out=$(sh_ pm disable-user --user 0 "$1" 2>&1)
   if printf '%s' "$out" | grep -q "disabled-user"; then
-    grep -qx "$1" "$B_/disabled_by_us.txt" || printf '%s\n' "$1" >> "$B_/disabled_by_us.txt"
+    grep -qx "$1" "$d/disabled_by_us.txt" || printf '%s\n' "$1" >> "$d/disabled_by_us.txt"
     if [ "$2" = suspend ]; then
-      sh_ pm suspend --user 0 "$1" >/dev/null 2>&1 && { grep -qx "$1" "$B_/suspended_by_us.txt" || printf '%s\n' "$1" >> "$B_/suspended_by_us.txt"; }
+      sh_ pm suspend --user 0 "$1" >/dev/null 2>&1 && { grep -qx "$1" "$d/suspended_by_us.txt" || printf '%s\n' "$1" >> "$d/suspended_by_us.txt"; }
     fi
     ok "Disabled $1"
   else
@@ -277,11 +289,11 @@ debloat() {
 }
 
 reapply() {
-  local B_; B_=$(latest_backup); [ -z "$B_" ] && { warn "Nothing applied yet."; return; }
+  local d; d="$(device_dir)"; [ -s "$d/disabled_by_us.txt" ] || { warn "Nothing applied yet."; return; }
   title "Re-applying after a TV update / reboot"
   local enabled; enabled=$(sh_ pm list packages -e | sed 's/package://')
   local pkg n=0
-  for pkg in $(cat "$B_/disabled_by_us.txt"); do
+  for pkg in $(cat "$d/disabled_by_us.txt"); do
     if printf '%s\n' "$enabled" | grep -qx "$pkg"; then
       n=$((n + 1)); warn "$pkg came back: disabling it again and suspending it"
       disable_pkg "$pkg" suspend
@@ -296,7 +308,16 @@ install_launcher() {
   need_backup
   title "Install Zen Home"
   [ -f "$APK" ] || { err "dist/zen-home.apk is missing. Download the release zip, or build it: ./launcher/build.sh"; return; }
-  adbc install -r "$APK" | tail -1
+  local res; res=$(adbc install -r "$APK" 2>&1 | tr -d '\r')
+  if ! printf '%s' "$res" | grep -q '^Success'; then
+    if printf '%s' "$res" | grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE'; then
+      warn "Another build of Zen Home is installed (signed differently). It must be removed first; your dock order will reset."
+      yes "Remove the old Zen Home and install this one?" || return
+      sh_ pm uninstall com.zen.tvhome >/dev/null
+      res=$(adbc install "$APK" 2>&1 | tr -d '\r')
+    fi
+    printf '%s' "$res" | grep -q '^Success' || { err "Install failed: $(printf '%s' "$res" | tail -1)"; return; }
+  fi
   local cur; cur=$(sh_ settings get secure enabled_accessibility_services)
   case "$cur" in
     *"$SVC"*) ;;
@@ -313,15 +334,14 @@ install_launcher() {
 
 restore() {
   local d; d="$(device_dir)"
-  local list; list=$(ls -1 "$d" 2>/dev/null | grep -v LATEST)
-  [ -z "$list" ] && { warn "No backup for this TV."; return; }
+  local B_; B_=$(baseline)
+  [ -z "$B_" ] && { warn "No backup for this TV."; return; }
   title "Restore"
-  local B_; B_=$(latest_backup)
-  say "Latest backup: $B_"
-  yes "Put the TV back exactly as in this backup?" || return
+  say "Original state: $B_"
+  yes "Put the TV back as it was before Zen TV?" || return
   local pkg
-  for pkg in $(cat "$B_/disabled_by_us.txt"); do say "enable $pkg: $(sh_ pm enable --user 0 "$pkg")"; done
-  for pkg in $(cat "$B_/suspended_by_us.txt"); do sh_ pm unsuspend --user 0 "$pkg" >/dev/null; done
+  for pkg in $(cat "$d/disabled_by_us.txt"); do say "enable $pkg: $(sh_ pm enable --user 0 "$pkg")"; done
+  for pkg in $(cat "$d/suspended_by_us.txt"); do sh_ pm unsuspend --user 0 "$pkg" >/dev/null; done
   local k v
   for k in enabled_accessibility_services accessibility_enabled; do
     v=$(grep "^$k=" "$B_/settings_secure.txt" | cut -d= -f2-)
@@ -329,14 +349,19 @@ restore() {
   done
   local home; home=$(grep / "$B_/home_activity.txt" | tail -1)
   [ -n "$home" ] && sh_ cmd package set-home-activity "$home" >/dev/null
-  sh_ pm list packages | grep -qx 'package:com.zen.tvhome' && sh_ pm uninstall com.zen.tvhome >/dev/null
-  sh_ pm list packages -d | sed 's/package://' | sort > "$B_/packages_disabled_after_restore.txt"
-  if diff -q "$B_/packages_disabled.txt" "$B_/packages_disabled_after_restore.txt" >/dev/null; then
+  # Zen Home is removed only if it wasn't there in the original state.
+  if ! grep -qx com.zen.tvhome "$B_/packages_user.txt" && sh_ pm list packages | grep -qx 'package:com.zen.tvhome'; then
+    sh_ pm uninstall com.zen.tvhome >/dev/null
+  fi
+  local now; now=$(mktemp)
+  sh_ pm list packages -d | sed 's/package://' | sort > "$now"
+  if diff -q "$B_/packages_disabled.txt" "$now" >/dev/null; then
     ok "The TV is back to its original state."
   else
-    warn "Differences with the backup (< before, > now):"; diff "$B_/packages_disabled.txt" "$B_/packages_disabled_after_restore.txt"
+    warn "Differences with the original state (< before, > now):"; diff "$B_/packages_disabled.txt" "$now"
   fi
-  : > "$B_/disabled_by_us.txt"; : > "$B_/suspended_by_us.txt"
+  rm -f "$now"
+  : > "$d/disabled_by_us.txt"; : > "$d/suspended_by_us.txt"
   sh_ input keyevent KEYCODE_HOME
 }
 

@@ -10,8 +10,21 @@ permissions:
   contents: write
 
 jobs:
+  windows-check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse zen.ps1 with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD\zen.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | Format-List; exit 1 }
+
   build:
     runs-on: ubuntu-24.04
+    env:
+      KEYSTORE_B64: ${{ secrets.ZEN_KEYSTORE_B64 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -30,9 +43,13 @@ jobs:
       - name: Check scripts
         run: bash -n zen.sh
 
-      - name: Release signing key (optional)
-        env:
-          KEYSTORE_B64: ${{ secrets.ZEN_KEYSTORE_B64 }}
+      - name: Release builds must use the release key (same signature = updates work)
+        if: startsWith(github.ref, 'refs/tags/v') && env.KEYSTORE_B64 == ''
+        run: |
+          echo "Missing secrets ZEN_KEYSTORE_B64 / ZEN_KEYSTORE_PASS / ZEN_KEY_ALIAS / ZEN_KEY_PASS"
+          exit 1
+
+      - name: Release signing key
         if: env.KEYSTORE_B64 != ''
         run: |
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
